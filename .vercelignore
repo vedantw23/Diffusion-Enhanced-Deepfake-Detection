@@ -1,0 +1,10 @@
+*.py
+requirements.txt
+data/
+outputs/
+.venv/
+__pycache__/
+*.pt
+README.md
+.git/
+.vercel/

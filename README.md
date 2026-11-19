@@ -9,7 +9,7 @@ PyTorch starter project for binary real-vs-deepfake image classification. The mo
 
 ## Web dashboard
 
-Open `index.html` in a browser for a responsive interactive detector dashboard. It is a presentation prototype: its in-browser results are simulated from the selected file and do not run the PyTorch checkpoint. Connect `predict.py` to an API before using it for real detections.
+Open `index.html` in a browser for a responsive interactive detector dashboard. It accepts images and video files. It is a presentation prototype: its in-browser results are simulated from the selected file and do not run the PyTorch checkpoint. Connect `predict.py` to an API before using it for real detections.
 
 ## Setup
 
@@ -50,5 +50,15 @@ The best validation-AUROC checkpoint is saved to `outputs/best.pt`.
 ```powershell
 python predict.py --checkpoint outputs/best.pt --image path\to\face.jpg
 ```
+
+## Predict a video
+
+The video checker samples evenly spaced frames, scores each one with the image detector, and averages their deepfake probabilities.
+
+```powershell
+python predict.py --checkpoint outputs/best.pt --video path\to\video.mp4 --frames 24
+```
+
+`--frames` controls the maximum number of frames analyzed. This is frame-based video detection; it does not yet model motion consistency between frames.
 
 This is a research baseline, not a forensic guarantee. Validate on held-out manipulation methods and report calibration, AUROC, and operating-point error rates before deployment.

@@ -11,3 +11,4 @@ body { margin:0; color:var(--ink); background:var(--paper); font-family:Manrope,
 @media (max-width:720px) { .page-shell{padding:0 22px}.nav-links{display:none}.nav-bar{height:72px}.hero{grid-template-columns:1fr; padding:80px 0 60px; gap:45px; min-height:0}.hero-orb{justify-self:start;width:210px;height:210px}.analysis-section{padding:76px 0}.section-heading{display:block}.section-heading h2{margin-top:12px}.analysis-grid,.method-section{grid-template-columns:1fr}.drop-zone{min-height:300px}.results-panel{min-height:350px}.method-section{padding:72px 0;gap:48px}footer{flex-direction:column;line-height:1.5}.status-dot{font-size:9px} }
 .verdict-card .verdict-question { color:var(--acid); font:9px "DM Mono",monospace; letter-spacing:.06em; margin-bottom:6px; }
 .verdict-card.authentic .verdict-question { color:var(--sky); }
+.drop-zone video { width:100%; height:100%; object-fit:cover; display:none; }
