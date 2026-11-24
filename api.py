@@ -60,7 +60,10 @@ class Detector:
         # repository root has another weight file with a different classifier.
         checkpoint = hf_hub_download(repo_id=MODEL_ID, filename=MODEL_WEIGHTS)
         model = ImagerTiny()
-        model.load_state_dict(torch.load(checkpoint, map_location="cpu", weights_only=True))
+        checkpoint_data = torch.load(checkpoint, map_location="cpu", weights_only=True)
+        # The official .pth file stores weights under "model" alongside
+        # threshold and preprocessing metadata.
+        model.load_state_dict(checkpoint_data["model"])
         model.eval()
         self.model = model
 
