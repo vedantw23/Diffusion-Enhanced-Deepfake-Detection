@@ -6,4 +6,4 @@ services:
     healthCheckPath: /health
     envVars:
       - key: MODEL_ID
-        value: Imagers/imager-1-pro
+        value: Imagers/Imager-1-tiny

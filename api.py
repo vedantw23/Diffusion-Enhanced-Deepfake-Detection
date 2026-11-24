@@ -16,9 +16,12 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 
-MODEL_ID = os.getenv("MODEL_ID", "Imagers/imager-1-pro")
+# A 25M-parameter ResNet-50 detector.  It is deliberately used instead of the
+# 89M-parameter Pro model so the API can run within Render Free's 512 MB RAM.
+MODEL_ID = os.getenv("MODEL_ID", "Imagers/Imager-1-tiny")
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
-MAX_VIDEO_FRAMES = 24
+MAX_VIDEO_FRAMES = 12
+INFERENCE_BATCH_SIZE = 4
 IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 class Detector:
@@ -39,11 +42,17 @@ class Detector:
     def predict(self, images: list[Image.Image]) -> list[float]:
         if self.model is None:
             raise RuntimeError("Model is not ready.")
-        inputs = self.processor(images=[image.convert("RGB") for image in images], return_tensors="pt")
-        with torch.no_grad():
-            probabilities = torch.softmax(self.model(**inputs).logits, dim=1).tolist()
         ai_index = next(index for index, label in self.model.config.id2label.items() if label.lower() in {"ai", "fake", "ai-generated"})
-        return [row[int(ai_index)] for row in probabilities]
+        scores: list[float] = []
+        # Videos are processed in small batches so a long upload cannot exhaust
+        # the limited RAM of a free CPU web service.
+        for start in range(0, len(images), INFERENCE_BATCH_SIZE):
+            batch = [image.convert("RGB") for image in images[start:start + INFERENCE_BATCH_SIZE]]
+            inputs = self.processor(images=batch, return_tensors="pt")
+            with torch.inference_mode():
+                probabilities = torch.softmax(self.model(**inputs).logits, dim=1).tolist()
+            scores.extend(row[int(ai_index)] for row in probabilities)
+        return scores
 
 
 detector = Detector()
@@ -87,10 +96,13 @@ def sample_video_frames(path: Path, count: int = MAX_VIDEO_FRAMES) -> list[Image
 
 def classify(probabilities: list[float], media_type: str) -> dict:
     ai_probability = sum(probabilities) / len(probabilities)
-    if ai_probability >= 0.60:
+    # The model card's validated operating threshold is 0.385.  A slightly
+    # higher threshold leaves a middle "uncertain" range instead of making
+    # overconfident claims about real photographs.
+    if ai_probability >= 0.55:
         decision = "likely_ai_generated"
         explanation = "The trained model found AI-generation patterns in the submitted media."
-    elif ai_probability <= 0.40:
+    elif ai_probability <= 0.35:
         decision = "likely_real"
         explanation = "The trained model found stronger evidence of a naturally captured image."
     else:

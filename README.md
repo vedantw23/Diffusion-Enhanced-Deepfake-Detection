@@ -9,7 +9,7 @@ PyTorch starter project for binary real-vs-deepfake image classification. The mo
 
 ## Real detection web app
 
-The dashboard now sends uploads to the FastAPI service in `api.py`; it does not generate results from a file name or file size. The API loads the pretrained `Imagers/imager-1-pro` ConvNeXt image detector and returns **likely AI-generated**, **likely real**, or **uncertain**.
+The dashboard now sends uploads to the FastAPI service in `api.py`; it does not generate results from a file name or file size. The API loads the pretrained `Imagers/Imager-1-tiny` ResNet-50 image detector and returns **likely AI-generated**, **likely real**, or **uncertain**. This 25M-parameter model is selected so the service can run within Render Free's 512 MB memory limit.
 
 The original local-global architecture remains available for research and retraining. The deployed API uses the pretrained detector so it can work immediately without a custom `best.pt` checkpoint.
 
@@ -20,7 +20,7 @@ pip install -r requirements.txt
 uvicorn api:app --reload
 ```
 
-Open `http://localhost:8000`. The API supports JPG, PNG, WEBP, MP4, WEBM, and MOV files up to 100 MB. Videos are assessed by sampling up to 24 evenly spaced frames and averaging their model scores.
+Open `http://localhost:8000`. The API supports JPG, PNG, WEBP, MP4, WEBM, and MOV files up to 100 MB. Videos are assessed by sampling up to 12 evenly spaced frames and averaging their model scores.
 
 For a static Vercel frontend, deploy the FastAPI service separately (the included `render.yaml` and `Dockerfile` support Render) and set `window.DETECTOR_API_URL` in `api-config.js` to that API's HTTPS URL before redeploying the frontend.
 
