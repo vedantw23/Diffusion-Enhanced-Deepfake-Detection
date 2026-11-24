@@ -52,7 +52,8 @@ class Detector:
         # in eval mode and does not change inference output.
         model.fc = torch.nn.Sequential(
             torch.nn.Dropout(p=0.2),
-            torch.nn.Linear(model.fc.in_features, 1),
+            # Class 0 = real image; class 1 = AI-generated image.
+            torch.nn.Linear(model.fc.in_features, 2),
         )
         model.load_state_dict(load_file(checkpoint, device="cpu"))
         model.eval()
@@ -70,7 +71,7 @@ class Detector:
                 for image in images[start:start + INFERENCE_BATCH_SIZE]
             ])
             with torch.inference_mode():
-                probabilities = torch.sigmoid(self.model(batch)).flatten().tolist()
+                probabilities = torch.softmax(self.model(batch), dim=1)[:, 1].tolist()
             scores.extend(probabilities)
         return scores
 
