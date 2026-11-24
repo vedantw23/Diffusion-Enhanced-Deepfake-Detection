@@ -15,14 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from huggingface_hub import hf_hub_download
 from PIL import Image, UnidentifiedImageError
-from safetensors.torch import load_file
 from torchvision import models, transforms
 
 # A 25M-parameter ResNet-50 detector. It is deliberately fixed to this model
 # so the service always fits within Render Free's 512 MB RAM, even if an older
 # MODEL_ID setting remains in the Render dashboard.
 MODEL_ID = "Imagers/Imager-1-tiny"
-MODEL_WEIGHTS = "model_imager-1-tiny.safetensors"
+MODEL_WEIGHTS = "model/model_imager-1-tiny.pth"
 AI_DECISION_THRESHOLD = 0.80
 REAL_DECISION_THRESHOLD = 0.20
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
@@ -30,6 +29,18 @@ MAX_VIDEO_FRAMES = 12
 INFERENCE_BATCH_SIZE = 4
 IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
+class ImagerTiny(torch.nn.Module):
+    """The architecture published by the model author for Imager-1-Tiny."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.backbone = models.resnet50(weights=None)
+        self.backbone.fc = torch.nn.Linear(self.backbone.fc.in_features, 1)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        return self.backbone(inputs)
+
+
 class Detector:
     def __init__(self) -> None:
         self.preprocess = transforms.Compose([
@@ -45,19 +56,11 @@ class Detector:
         return self.model is not None
 
     def load(self) -> None:
-        # Imager-1-Tiny is a custom ResNet-50 checkpoint, not a Transformers
-        # checkpoint. Load its safetensors weights with its documented layout.
+        # Use the author's documented custom checkpoint and architecture. The
+        # repository root has another weight file with a different classifier.
         checkpoint = hf_hub_download(repo_id=MODEL_ID, filename=MODEL_WEIGHTS)
-        model = models.resnet50(weights=None)
-        # The published checkpoint stores its classifier as Dropout + Linear,
-        # hence the fc.1.* keys in its state dictionary. Dropout is inactive
-        # in eval mode and does not change inference output.
-        model.fc = torch.nn.Sequential(
-            torch.nn.Dropout(p=0.2),
-            # Class 0 = real image; class 1 = AI-generated image.
-            torch.nn.Linear(model.fc.in_features, 2),
-        )
-        model.load_state_dict(load_file(checkpoint, device="cpu"))
+        model = ImagerTiny()
+        model.load_state_dict(torch.load(checkpoint, map_location="cpu", weights_only=True))
         model.eval()
         self.model = model
 
@@ -73,7 +76,7 @@ class Detector:
                 for image in images[start:start + INFERENCE_BATCH_SIZE]
             ])
             with torch.inference_mode():
-                probabilities = torch.softmax(self.model(batch), dim=1)[:, 1].tolist()
+                probabilities = torch.sigmoid(self.model(batch)).flatten().tolist()
             scores.extend(probabilities)
         return scores
 

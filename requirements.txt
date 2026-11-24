@@ -8,7 +8,6 @@ opencv-python-headless>=4.9
 fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
-# The custom ResNet checkpoint is downloaded directly from Hugging Face and
-# loaded as safetensors; no Transformers runtime is required.
+# The custom ResNet checkpoint is downloaded directly from Hugging Face; no
+# Transformers runtime is required.
 huggingface_hub>=0.26
-safetensors>=0.4
