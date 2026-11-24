@@ -23,6 +23,8 @@ from torchvision import models, transforms
 # MODEL_ID setting remains in the Render dashboard.
 MODEL_ID = "Imagers/Imager-1-tiny"
 MODEL_WEIGHTS = "model_imager-1-tiny.safetensors"
+AI_DECISION_THRESHOLD = 0.80
+REAL_DECISION_THRESHOLD = 0.20
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 MAX_VIDEO_FRAMES = 12
 INFERENCE_BATCH_SIZE = 4
@@ -117,13 +119,13 @@ def sample_video_frames(path: Path, count: int = MAX_VIDEO_FRAMES) -> list[Image
 
 def classify(probabilities: list[float], media_type: str) -> dict:
     ai_probability = sum(probabilities) / len(probabilities)
-    # The model card's validated operating threshold is 0.385.  A slightly
-    # higher threshold leaves a middle "uncertain" range instead of making
-    # overconfident claims about real photographs.
-    if ai_probability >= 0.55:
+    # Use a deliberately conservative decision band. The lightweight model can
+    # overreact to compression, editing, or unusual lighting in real photos;
+    # scores in the middle are reported as uncertain rather than false claims.
+    if ai_probability >= AI_DECISION_THRESHOLD:
         decision = "likely_ai_generated"
         explanation = "The trained model found AI-generation patterns in the submitted media."
-    elif ai_probability <= 0.35:
+    elif ai_probability <= REAL_DECISION_THRESHOLD:
         decision = "likely_real"
         explanation = "The trained model found stronger evidence of a naturally captured image."
     else:
