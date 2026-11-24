@@ -8,4 +8,6 @@ opencv-python-headless>=4.9
 fastapi>=0.115
 uvicorn[standard]>=0.30
 python-multipart>=0.0.9
-transformers>=4.46
+# Transformers 5 requires PyTorch 2.6+. Keep the compatible 4.x release for
+# the CPU-only PyTorch build used by the free Render service.
+transformers>=4.46,<5.0
