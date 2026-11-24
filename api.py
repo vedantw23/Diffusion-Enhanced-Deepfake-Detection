@@ -1,4 +1,4 @@
-"""FastAPI service for real image and frame-based video deepfake inference."""
+"""FastAPI service using a pretrained AI-image detector and video-frame sampling."""
 
 from __future__ import annotations
 
@@ -14,49 +14,36 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
-from torchvision import transforms
+from transformers import AutoImageProcessor, AutoModelForImageClassification
 
-from data import IMAGENET_MEAN, IMAGENET_STD
-from model import DiffusionEnhancedDetector
-
-CHECKPOINT_PATH = Path(os.getenv("CHECKPOINT_PATH", "outputs/best.pt"))
+MODEL_ID = os.getenv("MODEL_ID", "Imagers/imager-1-pro")
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 MAX_VIDEO_FRAMES = 24
 IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
-PREPROCESS = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-])
-
-
 class Detector:
     def __init__(self) -> None:
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model: DiffusionEnhancedDetector | None = None
+        self.processor = None
+        self.model = None
 
     @property
     def ready(self) -> bool:
         return self.model is not None
 
     def load(self) -> None:
-        if not CHECKPOINT_PATH.is_file():
-            return
-        checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=True)
-        model = DiffusionEnhancedDetector(pretrained_backbone=False).to(self.device)
-        model.load_state_dict(checkpoint["model_state"])
+        self.processor = AutoImageProcessor.from_pretrained(MODEL_ID)
+        model = AutoModelForImageClassification.from_pretrained(MODEL_ID)
         model.eval()
         self.model = model
 
     def predict(self, images: list[Image.Image]) -> list[float]:
         if self.model is None:
             raise RuntimeError("Model is not ready.")
-        batch = torch.stack([PREPROCESS(image.convert("RGB")) for image in images]).to(self.device)
+        inputs = self.processor(images=[image.convert("RGB") for image in images], return_tensors="pt")
         with torch.no_grad():
-            real_probabilities = torch.sigmoid(self.model(batch)).cpu().tolist()
-        # ImageFolder assigns fake=0 and real=1, so expose fake probability.
-        return [1.0 - probability for probability in real_probabilities]
+            probabilities = torch.softmax(self.model(**inputs).logits, dim=1).tolist()
+        ai_index = next(index for index, label in self.model.config.id2label.items() if label.lower() in {"ai", "fake", "ai-generated"})
+        return [row[int(ai_index)] for row in probabilities]
 
 
 detector = Detector()
@@ -124,15 +111,15 @@ def classify(probabilities: list[float], media_type: str) -> dict:
 def health() -> dict:
     return {
         "model_ready": detector.ready,
-        "checkpoint_path": str(CHECKPOINT_PATH),
-        "message": "Ready" if detector.ready else "Checkpoint not found. Train the model and place best.pt in outputs/.",
+        "model": MODEL_ID,
+        "message": "Ready" if detector.ready else "Pretrained model is loading or unavailable.",
     }
 
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)) -> dict:
     if not detector.ready:
-        raise HTTPException(status_code=503, detail="Model checkpoint is unavailable. Train the model before requesting predictions.")
+        raise HTTPException(status_code=503, detail="The pretrained detector is still loading. Please retry shortly.")
     if file.content_type not in IMAGE_TYPES | VIDEO_TYPES:
         raise HTTPException(status_code=415, detail="Use JPG, PNG, WEBP, MP4, WEBM, or MOV media.")
     content = await file.read(MAX_UPLOAD_BYTES + 1)

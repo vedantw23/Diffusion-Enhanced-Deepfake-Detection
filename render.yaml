@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: diffusion-enhanced-deepfake-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_ID
+        value: Imagers/imager-1-pro

@@ -9,11 +9,11 @@ PyTorch starter project for binary real-vs-deepfake image classification. The mo
 
 ## Real detection web app
 
-The dashboard now sends uploads to the FastAPI service in `api.py`; it does not generate results from a file name or file size. It returns one of three calibrated decision labels: **likely AI-generated**, **likely real**, or **uncertain**.
+The dashboard now sends uploads to the FastAPI service in `api.py`; it does not generate results from a file name or file size. The API loads the pretrained `Imagers/imager-1-pro` ConvNeXt image detector and returns **likely AI-generated**, **likely real**, or **uncertain**.
 
-The current architecture must be **retrained** after this update because the multi-scale residual extraction is now deterministic. This removes random inference noise and makes repeated predictions for the same image stable.
+The original local-global architecture remains available for research and retraining. The deployed API uses the pretrained detector so it can work immediately without a custom `best.pt` checkpoint.
 
-Train the model first so that `outputs/best.pt` exists, then install dependencies and start the app:
+Install dependencies and start the app:
 
 ```powershell
 pip install -r requirements.txt
@@ -22,7 +22,7 @@ uvicorn api:app --reload
 
 Open `http://localhost:8000`. The API supports JPG, PNG, WEBP, MP4, WEBM, and MOV files up to 100 MB. Videos are assessed by sampling up to 24 evenly spaced frames and averaging their model scores.
 
-For a static Vercel frontend, deploy the FastAPI service separately and set `window.DETECTOR_API_URL` in `api-config.js` to that API's HTTPS URL before redeploying the frontend.
+For a static Vercel frontend, deploy the FastAPI service separately (the included `render.yaml` and `Dockerfile` support Render) and set `window.DETECTOR_API_URL` in `api-config.js` to that API's HTTPS URL before redeploying the frontend.
 
 ## Setup
 
