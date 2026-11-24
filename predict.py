@@ -12,10 +12,15 @@ from model import DiffusionEnhancedDetector
 
 
 def score_images(model: DiffusionEnhancedDetector, images: list[Image.Image], preprocess, device: torch.device) -> list[float]:
-    """Return a deepfake probability for each RGB image."""
+    """Return an AI-generated probability for each RGB image.
+
+    ImageFolder assigns fake=0 and real=1, so the network output is converted
+    from real probability to deepfake probability here.
+    """
     batch = torch.stack([preprocess(image) for image in images]).to(device)
     with torch.no_grad():
-        return torch.sigmoid(model(batch)).cpu().tolist()
+        real_probabilities = torch.sigmoid(model(batch)).cpu().tolist()
+    return [1.0 - probability for probability in real_probabilities]
 
 
 def sample_video_frames(video_path: str, frame_count: int) -> list[Image.Image]:

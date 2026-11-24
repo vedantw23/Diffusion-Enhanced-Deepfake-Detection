@@ -1,5 +1,5 @@
 {
   "framework": null,
-  "buildCommand": "mkdir -p dist && cp index.html styles.css script.js dist/",
+  "buildCommand": "mkdir -p dist && cp index.html styles.css script.js api-config.js dist/",
   "outputDirectory": "dist"
 }

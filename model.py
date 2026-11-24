@@ -4,22 +4,22 @@ from __future__ import annotations
 
 import torch
 from torch import Tensor, nn
+from torch.nn import functional as F
 from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
 
 
 class DiffusionResidualPyramid(nn.Module):
-    """Build deterministic residual views at several diffusion noise levels."""
+    """Build deterministic multi-scale residual views for artifact analysis."""
 
-    def __init__(self, noise_levels: tuple[float, ...] = (0.02, 0.06, 0.12)) -> None:
+    def __init__(self, blur_sizes: tuple[int, ...] = (3, 5, 9)) -> None:
         super().__init__()
-        self.noise_levels = noise_levels
+        self.blur_sizes = blur_sizes
 
     def forward(self, images: Tensor) -> Tensor:
         residuals = []
-        for sigma in self.noise_levels:
-            noise = torch.randn_like(images) * sigma
-            noisy = (images + noise).clamp(-3.0, 3.0)
-            residuals.append((noisy - images).abs())
+        for size in self.blur_sizes:
+            smoothed = F.avg_pool2d(images, kernel_size=size, stride=1, padding=size // 2, count_include_pad=False)
+            residuals.append((images - smoothed).abs())
         return torch.cat(residuals, dim=1)
 
 

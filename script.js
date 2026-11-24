@@ -8,29 +8,54 @@ const emptyResult = document.querySelector('#empty-result');
 const resultContent = document.querySelector('#result-content');
 const againButton = document.querySelector('#analyze-again');
 const previewOverlay = document.querySelector('#preview-overlay');
+const backendUrl = window.DETECTOR_API_URL || '';
 
-function updateResults(file, isVideo) {
-  const bytes = new Uint8Array(file.name.split('').map((character) => character.charCodeAt(0)));
-  const fingerprint = bytes.reduce((total, value) => (total * 31 + value) % 1000, file.size % 1000);
-  const score = 64 + (fingerprint % 34);
-  const isSynthetic = score >= 76;
-  const displayScore = isSynthetic ? score : 100 - score;
+function updateResults(result) {
+  const isSynthetic = result.decision === 'likely_ai_generated';
+  const isUncertain = result.decision === 'uncertain';
+  const displayScore = result.confidence * 100;
   const verdictCard = document.querySelector('#verdict-card');
   verdictCard.classList.toggle('authentic', !isSynthetic);
-  document.querySelector('#verdict').textContent = isSynthetic ? 'YES — AI GENERATED' : 'NO — LIKELY REAL';
-  document.querySelector('#verdict-icon').textContent = isSynthetic ? 'AI' : '✓';
-  document.querySelector('#verdict-subtitle').textContent = isSynthetic ? 'Synthetic patterns detected' : 'No synthetic patterns detected';
-  document.querySelector('#verdict-question').textContent = isVideo ? 'IS THIS VIDEO AI GENERATED?' : 'IS THIS IMAGE AI GENERATED?';
+  verdictCard.classList.toggle('uncertain', isUncertain);
+  document.querySelector('#verdict').textContent = isSynthetic ? 'YES — LIKELY AI GENERATED' : isUncertain ? 'UNCERTAIN — REVIEW NEEDED' : 'NO — LIKELY REAL';
+  document.querySelector('#verdict-icon').textContent = isSynthetic ? 'AI' : isUncertain ? '?' : '✓';
+  document.querySelector('#verdict-subtitle').textContent = isSynthetic ? 'Model detected generation patterns' : isUncertain ? 'Confidence is below the decision threshold' : 'Model found stronger real-image evidence';
+  document.querySelector('#verdict-question').textContent = result.media_type === 'video' ? 'IS THIS VIDEO AI GENERATED?' : 'IS THIS IMAGE AI GENERATED?';
   document.querySelector('#confidence').textContent = `${displayScore.toFixed(1)}% confidence`;
-  document.querySelector('#result-detail').textContent = isVideo
-    ? (isSynthetic ? 'Sampled video frames show evidence consistent with AI-generated media.' : 'Sampled video frames are consistent with naturally captured media.')
-    : (isSynthetic ? 'The fused evidence indicates a non-natural image-generation signature.' : 'The fused evidence is consistent with a naturally captured image.');
-  document.querySelector('#global-score').textContent = `${Math.min(99, score + 2)}%`;
-  document.querySelector('#local-score').textContent = `${Math.max(54, score - 5)}%`;
-  document.querySelector('#diffusion-score').textContent = `${Math.min(99, score + 1)}%`;
+  document.querySelector('#result-detail').textContent = result.explanation;
+  document.querySelector('#media-type').textContent = result.media_type.toUpperCase();
+  document.querySelector('#frames-analyzed').textContent = result.frames_analyzed;
+  document.querySelector('#model-status').textContent = 'TRAINED MODEL';
+  document.querySelector('#result-label').textContent = 'MODEL RESULT';
   emptyResult.hidden = true;
   resultContent.hidden = false;
   requestAnimationFrame(() => { document.querySelector('#meter-fill').style.width = `${displayScore}%`; });
+}
+
+function showError(message) {
+  const verdictCard = document.querySelector('#verdict-card');
+  verdictCard.classList.remove('authentic', 'uncertain');
+  document.querySelector('#result-label').textContent = 'MODEL UNAVAILABLE';
+  document.querySelector('#verdict').textContent = 'ANALYSIS NOT RUN';
+  document.querySelector('#verdict-icon').textContent = '!';
+  document.querySelector('#verdict-subtitle').textContent = 'No simulated result is shown';
+  document.querySelector('#confidence').textContent = '—';
+  document.querySelector('#meter-fill').style.width = '0%';
+  document.querySelector('#result-detail').textContent = message;
+  document.querySelector('#media-type').textContent = '—';
+  document.querySelector('#frames-analyzed').textContent = '—';
+  document.querySelector('#model-status').textContent = 'OFFLINE';
+  emptyResult.hidden = true;
+  resultContent.hidden = false;
+}
+
+async function requestPrediction(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${backendUrl}/predict`, { method: 'POST', body: formData });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || 'The model could not analyze this file.');
+  return data;
 }
 
 function processFile(file) {
@@ -56,10 +81,10 @@ function processFile(file) {
   previewOverlay.hidden = false;
   emptyResult.hidden = true;
   resultContent.hidden = true;
-  setTimeout(() => {
-    previewOverlay.hidden = true;
-    updateResults(file, isVideo);
-  }, 1250);
+  requestPrediction(file)
+    .then(updateResults)
+    .catch((error) => showError(error.message || 'Unable to contact the trained detection model.'))
+    .finally(() => { previewOverlay.hidden = true; });
 }
 
 fileInput.addEventListener('change', (event) => processFile(event.target.files[0]));

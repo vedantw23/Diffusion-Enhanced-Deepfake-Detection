@@ -43,7 +43,7 @@
           <aside class="results-panel" id="results-panel" aria-live="polite">
             <div class="empty-result" id="empty-result"><span class="scan-icon">⌁</span><p>Upload an image or video.<br />Get a clear answer.</p></div>
             <div class="result-content" id="result-content" hidden>
-              <p class="result-label">DETECTION RESULT</p>
+              <p class="result-label" id="result-label">MODEL RESULT</p>
               <div class="verdict-card" id="verdict-card">
                 <span class="verdict-icon" id="verdict-icon">AI</span>
                 <div>
@@ -56,9 +56,9 @@
               <div class="meter"><span id="meter-fill"></span></div>
               <p class="result-detail" id="result-detail">Strong evidence of generative manipulation was found.</p>
               <div class="signal-list">
-                <div><span>Global coherence</span><b id="global-score">94%</b></div>
-                <div><span>Local artifact traces</span><b id="local-score">89%</b></div>
-                <div><span>Diffusion residuals</span><b id="diffusion-score">93%</b></div>
+                <div><span>Media type</span><b id="media-type">—</b></div>
+                <div><span>Frames analyzed</span><b id="frames-analyzed">—</b></div>
+                <div><span>Model status</span><b id="model-status">VERIFIED</b></div>
               </div>
               <button class="analyze-again" id="analyze-again" type="button">Analyze another image</button>
             </div>
@@ -79,6 +79,7 @@
 
       <footer><span>DIFFUSION-ENHANCED DEEPFAKE DETECTION</span><span>Prototype interface · Model integration required for forensic use</span></footer>
     </main>
+    <script src="api-config.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

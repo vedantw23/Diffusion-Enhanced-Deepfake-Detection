@@ -12,3 +12,6 @@ body { margin:0; color:var(--ink); background:var(--paper); font-family:Manrope,
 .verdict-card .verdict-question { color:var(--acid); font:9px "DM Mono",monospace; letter-spacing:.06em; margin-bottom:6px; }
 .verdict-card.authentic .verdict-question { color:var(--sky); }
 .drop-zone video { width:100%; height:100%; object-fit:cover; display:none; }
+.verdict-card.uncertain { border-color:#d9b659; background:#3a321b; }
+.verdict-card.uncertain .verdict-icon { background:#ffd166; }
+.verdict-card.uncertain .verdict-question { color:#ffd166; }

@@ -7,9 +7,22 @@ PyTorch starter project for binary real-vs-deepfake image classification. The mo
 - **Diffusion enhancement:** a frozen, multi-level Gaussian-noise residual pyramid highlights generation artifacts at multiple noise levels.
 - **Fusion:** gated local-global attention combines all three sources before classification.
 
-## Web dashboard
+## Real detection web app
 
-Open `index.html` in a browser for a responsive interactive detector dashboard. It accepts images and video files. It is a presentation prototype: its in-browser results are simulated from the selected file and do not run the PyTorch checkpoint. Connect `predict.py` to an API before using it for real detections.
+The dashboard now sends uploads to the FastAPI service in `api.py`; it does not generate results from a file name or file size. It returns one of three calibrated decision labels: **likely AI-generated**, **likely real**, or **uncertain**.
+
+The current architecture must be **retrained** after this update because the multi-scale residual extraction is now deterministic. This removes random inference noise and makes repeated predictions for the same image stable.
+
+Train the model first so that `outputs/best.pt` exists, then install dependencies and start the app:
+
+```powershell
+pip install -r requirements.txt
+uvicorn api:app --reload
+```
+
+Open `http://localhost:8000`. The API supports JPG, PNG, WEBP, MP4, WEBM, and MOV files up to 100 MB. Videos are assessed by sampling up to 24 evenly spaced frames and averaging their model scores.
+
+For a static Vercel frontend, deploy the FastAPI service separately and set `window.DETECTOR_API_URL` in `api-config.js` to that API's HTTPS URL before redeploying the frontend.
 
 ## Setup
 
@@ -61,4 +74,4 @@ python predict.py --checkpoint outputs/best.pt --video path\to\video.mp4 --frame
 
 `--frames` controls the maximum number of frames analyzed. This is frame-based video detection; it does not yet model motion consistency between frames.
 
-This is a research baseline, not a forensic guarantee. Validate on held-out manipulation methods and report calibration, AUROC, and operating-point error rates before deployment.
+This is a research baseline, not a forensic guarantee. Validate on held-out manipulation methods and report calibration, AUROC, precision, recall, F1-score, and operating-point error rates before claiming a production accuracy level.
