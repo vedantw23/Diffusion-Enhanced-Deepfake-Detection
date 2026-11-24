@@ -5,5 +5,7 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
-      - key: MODEL_ID
-        value: Imagers/Imager-1-tiny
+      - key: SIGHTENGINE_API_USER
+        sync: false
+      - key: SIGHTENGINE_API_SECRET
+        sync: false
