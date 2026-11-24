@@ -16,9 +16,10 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 
-# A 25M-parameter ResNet-50 detector.  It is deliberately used instead of the
-# 89M-parameter Pro model so the API can run within Render Free's 512 MB RAM.
-MODEL_ID = os.getenv("MODEL_ID", "Imagers/Imager-1-tiny")
+# A 25M-parameter ResNet-50 detector. It is deliberately fixed to this model
+# so the service always fits within Render Free's 512 MB RAM, even if an older
+# MODEL_ID setting remains in the Render dashboard.
+MODEL_ID = "Imagers/Imager-1-tiny"
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 MAX_VIDEO_FRAMES = 12
 INFERENCE_BATCH_SIZE = 4
