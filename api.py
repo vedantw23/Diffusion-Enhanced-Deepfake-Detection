@@ -29,18 +29,6 @@ MAX_VIDEO_FRAMES = 12
 INFERENCE_BATCH_SIZE = 4
 IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
-class ImagerTiny(torch.nn.Module):
-    """The architecture published by the model author for Imager-1-Tiny."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.backbone = models.resnet50(weights=None)
-        self.backbone.fc = torch.nn.Linear(self.backbone.fc.in_features, 1)
-
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        return self.backbone(inputs)
-
-
 class Detector:
     def __init__(self) -> None:
         self.preprocess = transforms.Compose([
@@ -50,22 +38,38 @@ class Detector:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         self.model = None
+        self.ai_class_index = 1
 
     @property
     def ready(self) -> bool:
         return self.model is not None
 
     def load(self) -> None:
-        # Use the author's documented custom checkpoint and architecture. The
-        # repository root has another weight file with a different classifier.
+        # The saved checkpoint contains a two-class ResNet state dictionary.
+        # Its source files describe an older single-logit variant, so use the
+        # actual state-dictionary layout reported by the checkpoint itself.
         checkpoint = hf_hub_download(repo_id=MODEL_ID, filename=MODEL_WEIGHTS)
-        model = ImagerTiny()
+        model = models.resnet50(weights=None)
+        model.fc = torch.nn.Sequential(
+            torch.nn.Dropout(p=0.2),
+            torch.nn.Linear(model.fc.in_features, 2),
+        )
         checkpoint_data = torch.load(checkpoint, map_location="cpu", weights_only=True)
-        # The official .pth file stores weights under "model" alongside
-        # threshold and preprocessing metadata.
         model.load_state_dict(checkpoint_data["model"])
+        self.ai_class_index = self._find_ai_class_index(checkpoint_data.get("class_mapping"))
         model.eval()
         self.model = model
+
+    @staticmethod
+    def _find_ai_class_index(class_mapping: object) -> int:
+        if not isinstance(class_mapping, dict):
+            return 1
+        for key, value in class_mapping.items():
+            if str(value).lower() in {"ai", "fake", "ai-generated", "ai_generated"}:
+                return int(key)
+            if str(key).lower() in {"ai", "fake", "ai-generated", "ai_generated"}:
+                return int(value)
+        return 1
 
     def predict(self, images: list[Image.Image]) -> list[float]:
         if self.model is None:
@@ -79,7 +83,7 @@ class Detector:
                 for image in images[start:start + INFERENCE_BATCH_SIZE]
             ])
             with torch.inference_mode():
-                probabilities = torch.sigmoid(self.model(batch)).flatten().tolist()
+                probabilities = torch.softmax(self.model(batch), dim=1)[:, self.ai_class_index].tolist()
             scores.extend(probabilities)
         return scores
 
