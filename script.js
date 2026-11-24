@@ -52,9 +52,19 @@ function showError(message) {
 async function requestPrediction(file) {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await fetch(`${backendUrl}/predict`, { method: 'POST', body: formData });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || 'The model could not analyze this file.');
+  let response;
+  try {
+    response = await fetch(`${backendUrl}/predict`, { method: 'POST', body: formData });
+  } catch {
+    throw new Error('The detection API cannot be reached. Start the FastAPI service or configure api-config.js with its HTTPS URL.');
+  }
+  const isJson = response.headers.get('content-type')?.includes('application/json');
+  const data = isJson ? await response.json() : null;
+  if (!response.ok) {
+    if (data?.detail) throw new Error(data.detail);
+    throw new Error('The detection API is not connected to this website. Deploy the FastAPI service with a trained best.pt checkpoint, then set its URL in api-config.js.');
+  }
+  if (!data) throw new Error('The detection API returned an invalid response.');
   return data;
 }
 
