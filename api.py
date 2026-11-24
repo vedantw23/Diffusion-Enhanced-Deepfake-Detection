@@ -47,7 +47,13 @@ class Detector:
         # checkpoint. Load its safetensors weights with its documented layout.
         checkpoint = hf_hub_download(repo_id=MODEL_ID, filename=MODEL_WEIGHTS)
         model = models.resnet50(weights=None)
-        model.fc = torch.nn.Linear(model.fc.in_features, 1)
+        # The published checkpoint stores its classifier as Dropout + Linear,
+        # hence the fc.1.* keys in its state dictionary. Dropout is inactive
+        # in eval mode and does not change inference output.
+        model.fc = torch.nn.Sequential(
+            torch.nn.Dropout(p=0.2),
+            torch.nn.Linear(model.fc.in_features, 1),
+        )
         model.load_state_dict(load_file(checkpoint, device="cpu"))
         model.eval()
         self.model = model
