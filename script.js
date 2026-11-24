@@ -8,7 +8,9 @@ const emptyResult = document.querySelector('#empty-result');
 const resultContent = document.querySelector('#result-content');
 const againButton = document.querySelector('#analyze-again');
 const previewOverlay = document.querySelector('#preview-overlay');
+const overlayStatus = document.querySelector('#overlay-status');
 const backendUrl = window.DETECTOR_API_URL || '';
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 function updateResults(result) {
   const isSynthetic = result.decision === 'likely_ai_generated';
@@ -32,13 +34,14 @@ function updateResults(result) {
   requestAnimationFrame(() => { document.querySelector('#meter-fill').style.width = `${displayScore}%`; });
 }
 
-function showError(message) {
+function showError(message, mediaType = 'image') {
   const verdictCard = document.querySelector('#verdict-card');
   verdictCard.classList.remove('authentic', 'uncertain');
   document.querySelector('#result-label').textContent = 'MODEL UNAVAILABLE';
   document.querySelector('#verdict').textContent = 'ANALYSIS NOT RUN';
   document.querySelector('#verdict-icon').textContent = '!';
   document.querySelector('#verdict-subtitle').textContent = 'No simulated result is shown';
+  document.querySelector('#verdict-question').textContent = mediaType === 'video' ? 'IS THIS VIDEO AI GENERATED?' : 'IS THIS IMAGE AI GENERATED?';
   document.querySelector('#confidence').textContent = '—';
   document.querySelector('#meter-fill').style.width = '0%';
   document.querySelector('#result-detail').textContent = message;
@@ -56,7 +59,7 @@ async function requestPrediction(file) {
   try {
     response = await fetch(`${backendUrl}/predict`, { method: 'POST', body: formData });
   } catch {
-    throw new Error('The detection API cannot be reached. Start the FastAPI service or configure api-config.js with its HTTPS URL.');
+    throw new Error('The detection API cannot be reached. The free server may be waking up; wait one minute, refresh the page, and try again.');
   }
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json() : null;
@@ -71,6 +74,10 @@ async function requestPrediction(file) {
 function processFile(file) {
   const isVideo = file?.type.startsWith('video/');
   if (!file || (!file.type.startsWith('image/') && !isVideo)) return;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    showError('This file is larger than the 100 MB limit. Choose a smaller image or video.', isVideo ? 'video' : 'image');
+    return;
+  }
   const objectUrl = URL.createObjectURL(file);
   if (isVideo) {
     preview.style.display = 'none';
@@ -89,11 +96,12 @@ function processFile(file) {
   uploadPrompt.style.display = 'none';
   replaceButton.style.display = 'block';
   previewOverlay.hidden = false;
+  overlayStatus.textContent = isVideo ? 'ANALYZING VIDEO FRAMES — PLEASE WAIT' : 'ANALYZING IMAGE — PLEASE WAIT';
   emptyResult.hidden = true;
   resultContent.hidden = true;
   requestPrediction(file)
     .then(updateResults)
-    .catch((error) => showError(error.message || 'Unable to contact the trained detection model.'))
+    .catch((error) => showError(error.message || 'Unable to contact the trained detection model.', isVideo ? 'video' : 'image'))
     .finally(() => { previewOverlay.hidden = true; });
 }
 
