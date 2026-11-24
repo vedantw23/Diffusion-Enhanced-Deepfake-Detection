@@ -13,13 +13,16 @@ import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from huggingface_hub import hf_hub_download
 from PIL import Image, UnidentifiedImageError
-from transformers import AutoImageProcessor, AutoModelForImageClassification
+from safetensors.torch import load_file
+from torchvision import models, transforms
 
 # A 25M-parameter ResNet-50 detector. It is deliberately fixed to this model
 # so the service always fits within Render Free's 512 MB RAM, even if an older
 # MODEL_ID setting remains in the Render dashboard.
 MODEL_ID = "Imagers/Imager-1-tiny"
+MODEL_WEIGHTS = "model_imager-1-tiny.safetensors"
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 MAX_VIDEO_FRAMES = 12
 INFERENCE_BATCH_SIZE = 4
@@ -27,7 +30,12 @@ IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 class Detector:
     def __init__(self) -> None:
-        self.processor = None
+        self.preprocess = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
         self.model = None
 
     @property
@@ -35,24 +43,29 @@ class Detector:
         return self.model is not None
 
     def load(self) -> None:
-        self.processor = AutoImageProcessor.from_pretrained(MODEL_ID)
-        model = AutoModelForImageClassification.from_pretrained(MODEL_ID)
+        # Imager-1-Tiny is a custom ResNet-50 checkpoint, not a Transformers
+        # checkpoint. Load its safetensors weights with its documented layout.
+        checkpoint = hf_hub_download(repo_id=MODEL_ID, filename=MODEL_WEIGHTS)
+        model = models.resnet50(weights=None)
+        model.fc = torch.nn.Linear(model.fc.in_features, 1)
+        model.load_state_dict(load_file(checkpoint, device="cpu"))
         model.eval()
         self.model = model
 
     def predict(self, images: list[Image.Image]) -> list[float]:
         if self.model is None:
             raise RuntimeError("Model is not ready.")
-        ai_index = next(index for index, label in self.model.config.id2label.items() if label.lower() in {"ai", "fake", "ai-generated"})
         scores: list[float] = []
         # Videos are processed in small batches so a long upload cannot exhaust
         # the limited RAM of a free CPU web service.
         for start in range(0, len(images), INFERENCE_BATCH_SIZE):
-            batch = [image.convert("RGB") for image in images[start:start + INFERENCE_BATCH_SIZE]]
-            inputs = self.processor(images=batch, return_tensors="pt")
+            batch = torch.stack([
+                self.preprocess(image.convert("RGB"))
+                for image in images[start:start + INFERENCE_BATCH_SIZE]
+            ])
             with torch.inference_mode():
-                probabilities = torch.softmax(self.model(**inputs).logits, dim=1).tolist()
-            scores.extend(row[int(ai_index)] for row in probabilities)
+                probabilities = torch.sigmoid(self.model(batch)).flatten().tolist()
+            scores.extend(probabilities)
         return scores
 
 
